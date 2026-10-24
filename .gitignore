@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+.venv/
+.pnpm-store/
+data/
+work/
+outputs/backups/
+# Local previews and provider verification reports are not source code.
+outputs/
+samples/
+frontend/node_modules/
+**/__pycache__/
+.pytest_cache/
+*.log

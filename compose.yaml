@@ -1,0 +1,71 @@
+name: topic-video-studio
+x-app: &app
+  build: .
+  env_file: .env
+  environment: &env
+    DATABASE_URL: postgresql+psycopg://studio:studio_local@db:5432/studio
+    REDIS_URL: redis://redis:6379/0
+    EXECUTION_MODE: celery
+    MEDIA_DIR: /studio/data/media
+  volumes:
+    - media:/studio/data
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: studio
+      POSTGRES_PASSWORD: studio_local
+      POSTGRES_DB: studio
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U studio -d studio"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  api:
+    <<: *app
+    ports:
+      - "127.0.0.1:8000:8000"
+  worker:
+    <<: *app
+    command: celery -A app.worker:celery worker --loglevel=info --concurrency=1
+    depends_on:
+      api:
+        condition: service_started
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  beat:
+    <<: *app
+    command: celery -A app.worker:celery beat --loglevel=info --schedule=/studio/data/celerybeat-schedule
+    depends_on:
+      api:
+        condition: service_started
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+volumes:
+  postgres:
+  redis:
+  media:
